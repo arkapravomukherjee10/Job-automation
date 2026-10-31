@@ -33,3 +33,7 @@ Set the final Pages origin in Render's FRONTEND_ORIGINS. The included redirects 
 Verify /health, invited and uninvited login, expired tokens, email delivery, tenant isolation on PostgreSQL, DOCX/PDF parsing, data persistence after a backend restart, and the dashboard at 360px. Test role permissions on the deployed database. Production infrastructure and OAuth have not been validated by local tests.
 
 Workspace data deletion does not delete the Supabase auth account or provider backups. Do not advertise complete account deletion until admin auth deletion and backup-retention policies are implemented. A domain or SMTP allowance may introduce costs; verify before public use.
+
+## Database password without URL encoding
+
+Set `DATABASE_URL` without a password, for example `postgresql+psycopg://postgres.PROJECT_REF@POOLER_HOST:5432/postgres?sslmode=require`, and set `DB_PASSWORD` separately in Render to the exact raw Supabase database password. Do not encode it or add quotes. The backend passes reserved characters unchanged using a SQLAlchemy URL object. Existing encoded URLs remain supported when `DB_PASSWORD` is not set. Never log or commit actual credentials.

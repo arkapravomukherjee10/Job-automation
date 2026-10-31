@@ -13,6 +13,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.pool import StaticPool
 from .validation import Resume, validate_resume
 from .parsing import prefill_resume
+from .database import connection_url
 
 MODE = os.getenv("APP_MODE", "production")
 DB = os.getenv("DATABASE_URL", "sqlite:///./jobradar.db")
@@ -25,7 +26,7 @@ if MODE != "development" and (
         "Production requires PostgreSQL, SUPABASE_URL and INVITED_EMAILS."
     )
 engine = create_engine(
-    DB,
+    connection_url(DB, os.getenv("DB_PASSWORD")),
     **(
         {
             "connect_args": {"check_same_thread": False},
