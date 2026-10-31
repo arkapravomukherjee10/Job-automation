@@ -51,3 +51,7 @@ See [deployment instructions](docs/DEPLOYMENT.md) and [scope and remaining work]
 ## Invite-only beta administration
 
 Sign in as **arkapravo.mukherjee10@gmail.com** using the emailed sign-in link, then open **Admin**. Add invited email addresses and share the app link; users verify their own email. No manual Supabase user creation or Render invitation-list editing is needed. The admin list records first verified app sign-ins and waiting accounts. Removing access blocks subsequent private API requests while retaining workspace data. Supabase email signup and email delivery must be enabled.
+
+## UI regression checks
+
+From `frontend`, run `npm run test:ux` after installing Playwright Chromium with `npx playwright install chromium`. On this cloud workspace, use `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:ux`. The tests use simulated authentication and API responses. See [the UX review](docs/UX_REVIEW.md) for tested flows and limits.

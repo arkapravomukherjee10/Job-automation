@@ -1,3 +1,4 @@
+import Dialog from "./Dialog";
 import { useEffect, useState, type FormEvent } from "react";
 import { Check, Copy, Plus, RefreshCw, ShieldCheck, Users } from "lucide-react";
 
@@ -23,7 +24,8 @@ export default function AdminPanel({ request }: { request: Request }) {
     [email, setEmail] = useState(""),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [pendingRevoke, setPendingRevoke] = useState<string | null>(null);
   async function load() {
     setData(await request("/api/admin/users"));
   }
@@ -70,14 +72,23 @@ export default function AdminPanel({ request }: { request: Request }) {
         <div>
           <h2>Your private beta, made simple</h2>
           <p>
-            Add an email to grant access. People verify their email to sign in;
-            you don’t need to create their accounts in Supabase.
+            Add an email to grant access. People verify their email when they
+            sign in. You manage their access here.
           </p>
         </div>
       </section>
       {error && (
         <div className="alert" role="alert">
-          {error}
+          <span>{error}</span>
+          {!data && (
+            <button
+              className="secondary"
+              disabled={busy}
+              onClick={() => run(load)}
+            >
+              Retry loading users
+            </button>
+          )}
         </div>
       )}
       {notice && (
@@ -164,14 +175,19 @@ export default function AdminPanel({ request }: { request: Request }) {
             </p>
           </div>
         ) : (
-          <div className="admin-table-wrap">
+          <div
+            className="admin-table-wrap"
+            role="region"
+            aria-label="Invited email list"
+            tabIndex={0}
+          >
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Email</th>
-                  <th>Access</th>
-                  <th>Joined</th>
-                  <th>Action</th>
+                  <th scope="col">Email</th>
+                  <th scope="col">Access</th>
+                  <th scope="col">Joined</th>
+                  <th scope="col">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -197,13 +213,10 @@ export default function AdminPanel({ request }: { request: Request }) {
                         className={i.active ? "danger" : "secondary"}
                         disabled={busy}
                         onClick={() => {
-                          if (
-                            i.active &&
-                            !window.confirm(
-                              `Remove access for ${i.email}? They will lose access, and their saved workspace data will be retained.`,
-                            )
-                          )
+                          if (i.active) {
+                            setPendingRevoke(i.email);
                             return;
+                          }
                           run(async () => {
                             await request(
                               i.active
@@ -233,15 +246,22 @@ export default function AdminPanel({ request }: { request: Request }) {
       </section>
       <section className="panel">
         <h2>Who has signed up</h2>
-        {data?.members.length ? (
-          <div className="admin-table-wrap">
+        {!data ? (
+          <p role="status">Loading signups…</p>
+        ) : data.members.length ? (
+          <div
+            className="admin-table-wrap"
+            role="region"
+            aria-label="Signed-up user list"
+            tabIndex={0}
+          >
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Email</th>
-                  <th>Access</th>
-                  <th>First sign-in</th>
-                  <th>Last seen</th>
+                  <th scope="col">Email</th>
+                  <th scope="col">Access</th>
+                  <th scope="col">First sign-in</th>
+                  <th scope="col">Last seen</th>
                 </tr>
               </thead>
               <tbody>
@@ -268,6 +288,51 @@ export default function AdminPanel({ request }: { request: Request }) {
           <p className="muted">No verified sign-ins have been recorded yet.</p>
         )}
       </section>
+      {pendingRevoke && (
+        <Dialog
+          titleId="revoke-title"
+          destructive
+          onClose={() => setPendingRevoke(null)}
+        >
+          <h2 id="revoke-title">Remove access?</h2>
+          <p>
+            <strong>{pendingRevoke}</strong> will lose access to private
+            features. Their saved workspace data will be retained.
+          </p>
+          <div className="button-row">
+            <button
+              data-initial-focus
+              className="secondary"
+              onClick={() => setPendingRevoke(null)}
+            >
+              Cancel
+            </button>
+            <button
+              className="danger"
+              disabled={busy}
+              onClick={() =>
+                run(async () => {
+                  await request("/api/admin/invitations/revoke", "POST", {
+                    email: pendingRevoke,
+                  });
+                  await load();
+                  setPendingRevoke(null);
+                  setNotice(
+                    "Access removed. Existing sessions can no longer access private features.",
+                  );
+                })
+              }
+            >
+              {busy ? "Removing…" : "Remove access"}
+            </button>
+          </div>
+          {error && (
+            <p className="error-text" role="alert">
+              {error}
+            </p>
+          )}
+        </Dialog>
+      )}
     </div>
   );
 }

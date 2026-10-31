@@ -1,3 +1,4 @@
+import Dialog from "./Dialog";
 import AdminPanel from "./AdminPanel";
 import ResumeEditor from "./ResumeEditor";
 import { useEffect, useState, useRef, type FormEvent } from "react";
@@ -86,7 +87,7 @@ const alreadyApplied = (job: Job) =>
   );
 
 export default function App() {
-  const currentUser = useRef<string|null>(null);
+  const currentUser = useRef<string | null>(null);
   const [session, setSession] = useState<Session | null>(null),
     [tab, setTab] = useState("Home"),
     [access, setAccess] = useState<Access | null>(null),
@@ -94,12 +95,16 @@ export default function App() {
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
+    [signingOut, setSigningOut] = useState(false),
     [addOpen, setAddOpen] = useState(false),
     [selected, setSelected] = useState<Job | null>(null),
     [search, setSearch] = useState(""),
     [filter, setFilter] = useState("All"),
+    [stageFilter, setStageFilter] = useState("All stages"),
     [email, setEmail] = useState(""),
     [sent, setSent] = useState(false),
+    [resendSeconds, setResendSeconds] = useState(0),
+    [confirmDelete, setConfirmDelete] = useState(false),
     [resumeJson, setResumeJson] = useState(""),
     [extracted, setExtracted] = useState(""),
     [parseWarnings, setParseWarnings] = useState<string[]>([]),
@@ -112,21 +117,37 @@ export default function App() {
     const current = supabase
       ? (await supabase.auth.getSession()).data.session
       : null;
-    const response = await fetch(apiUrl + path, {
-      method,
-      headers: {
-        ...(body instanceof FormData
-          ? {}
-          : { "Content-Type": "application/json" }),
-        ...(current ? { Authorization: "Bearer " + current.access_token } : {}),
-      },
-      body:
-        body instanceof FormData
-          ? body
-          : body === undefined
-            ? undefined
-            : JSON.stringify(body),
-    });
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 75000);
+    let response: Response;
+    try {
+      response = await fetch(apiUrl + path, {
+        method,
+        headers: {
+          ...(body !== undefined && !(body instanceof FormData)
+            ? { "Content-Type": "application/json" }
+            : {}),
+          ...(current
+            ? { Authorization: "Bearer " + current.access_token }
+            : {}),
+        },
+        body:
+          body instanceof FormData
+            ? body
+            : body === undefined
+              ? undefined
+              : JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch {
+      throw new Error(
+        controller.signal.aborted
+          ? "Your workspace is taking longer than expected. Please try again."
+          : "We couldn’t connect to your workspace. Please check your connection and try again. You can still sign out.",
+      );
+    } finally {
+      window.clearTimeout(timeout);
+    }
     if (!response.ok) {
       const data = await response
         .json()
@@ -161,32 +182,118 @@ export default function App() {
       setBusy(false);
     }
   }
-  useEffect(()=>{
+  useEffect(() => {
+    if (resendSeconds <= 0) return;
+    const timer = window.setTimeout(
+      () => setResendSeconds((value) => Math.max(0, value - 1)),
+      1000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [resendSeconds]);
+  async function signOut() {
+    if (!supabase) return;
+    setSigningOut(true);
+    setError("");
+    try {
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+      if (error) throw error;
+      setSession(null);
+      setAccess(null);
+      setState(null);
+      setSelected(null);
+      setAddOpen(false);
+      setConfirmDelete(false);
+      setResumeJson("");
+      setExtracted("");
+      setParseWarnings([]);
+      setValidation(null);
+      setSent(false);
+      setNotice("You’re signed out.");
+      setTab("Home");
+      window.requestAnimationFrame(() =>
+        document
+          .querySelector<HTMLInputElement>('input[autocomplete="email"]')
+          ?.focus(),
+      );
+    } catch {
+      setError(
+        "We couldn’t sign you out. Please check your connection and try again.",
+      );
+    } finally {
+      setSigningOut(false);
+    }
+  }
+  const logoutButton = (
+    <button
+      type="button"
+      className="secondary signout-button"
+      disabled={signingOut}
+      onClick={signOut}
+    >
+      <LogOut size={17} aria-hidden="true" />
+      {signingOut ? "Signing out…" : "Sign out"}
+    </button>
+  );
+  function navigate(next: string) {
+    setTab(next);
+    setError("");
+    setNotice("");
+    setFilter("All");
+    setStageFilter("All stages");
+    window.requestAnimationFrame(() =>
+      document.getElementById("page-title")?.focus(),
+    );
+  }
+  useEffect(() => {
     const location = new URL(window.location.href);
     const fragment = new URLSearchParams(location.hash.slice(1));
-    if(fragment.has('error') || location.searchParams.has('error')) {
-      setError('This sign-in link is invalid or has expired. Request a new link below and use the newest email.');
-      for(const key of ['error','error_code','error_description'])location.searchParams.delete(key);
-      location.hash='';
-      window.history.replaceState(null,'',location.pathname+location.search);
+    if (fragment.has("error") || location.searchParams.has("error")) {
+      setError(
+        "This sign-in link is invalid or has expired. Request a new link below and use the newest email.",
+      );
+      for (const key of ["error", "error_code", "error_description"])
+        location.searchParams.delete(key);
+      location.hash = "";
+      window.history.replaceState(
+        null,
+        "",
+        location.pathname + location.search,
+      );
     }
-  },[]);
+  }, []);
   useEffect(() => {
     if (!supabase) return;
-    const applySession = (value:Session|null) => {
+    const applySession = (value: Session | null) => {
       const nextUser = value?.user.id || null;
-      if(currentUser.current !== nextUser) {
+      if (currentUser.current !== nextUser) {
         currentUser.current = nextUser;
-        setAccess(null); setState(null); setTab('Home'); setSelected(null);
-        setResumeJson(''); setExtracted(''); setParseWarnings([]); setValidation(null);
+        setAccess(null);
+        setState(null);
+        setTab("Home");
+        setSelected(null);
+        setAddOpen(false);
+        setConfirmDelete(false);
+        setSent(false);
+        setResendSeconds(0);
+        setError("");
+        setNotice("");
+        setResumeJson("");
+        setExtracted("");
+        setParseWarnings([]);
+        setValidation(null);
       }
       setSession(value);
     };
-    supabase.auth.getSession().then(({data,error})=>{
-      if(error)setError('This sign-in link could not be verified. Request a new link and use the newest email.');
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error)
+        setError(
+          "This sign-in link could not be verified. Request a new link and use the newest email.",
+        );
       applySession(data.session);
     });
-    const {data} = supabase.auth.onAuthStateChange((_event,value)=>applySession(value));
+    const { data } = supabase.auth.onAuthStateChange((_event, value) =>
+      applySession(value),
+    );
     return () => data.subscription.unsubscribe();
   }, []);
   useEffect(() => {
@@ -321,13 +428,19 @@ export default function App() {
               onSubmit={(e) => {
                 e.preventDefault();
                 action(async () => {
-                  const {error} = await supabase.auth.signInWithOtp({
+                  const { error } = await supabase.auth.signInWithOtp({
                     email: email.trim(),
-                    options: {shouldCreateUser:true, emailRedirectTo:window.location.origin},
+                    options: {
+                      shouldCreateUser: true,
+                      emailRedirectTo: window.location.origin,
+                    },
                   });
-                  if(error) throw error;
+                  if (error) throw error;
                   setSent(true);
-                  setNotice("Check your email and click the sign-in link. It will verify your email and open Job Radar automatically. Use the newest email; each link works once.");
+                  setResendSeconds(60);
+                  setNotice(
+                    "Check your email and click the sign-in link. It will verify your email and open Job Radar automatically. Use the newest email; each link works once.",
+                  );
                 });
               }}
             >
@@ -335,26 +448,50 @@ export default function App() {
                 Email address
                 <input
                   type="email"
+                  autoComplete="email"
                   required
                   readOnly={sent}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </label>
-              <button disabled={busy}>
-                {sent ? "Send another sign-in link" : "Email me a sign-in link"}{" "}
+              <button disabled={busy || (sent && resendSeconds > 0)}>
+                {busy
+                  ? "Sending…"
+                  : sent && resendSeconds > 0
+                    ? `Resend in ${resendSeconds}s`
+                    : sent
+                      ? "Send another sign-in link"
+                      : "Email me a sign-in link"}{" "}
                 <ArrowUpRight size={16} />
               </button>
-              {sent && <button type="button" className="secondary" disabled={busy} onClick={()=>{setSent(false);setNotice('');setError('')}}>Use a different email</button>}
+              {sent && (
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    setSent(false);
+                    setNotice("");
+                    setError("");
+                  }}
+                >
+                  Use a different email
+                </button>
+              )}
             </form>
           )}
-          {error && <div className="alert">{error}</div>}
+          {error && (
+            <div className="alert" role="alert">
+              {error}
+            </div>
+          )}
           {notice && <p role="status">{notice}</p>}
           <small>
             Verify your email to continue. App features are available to invited
             users.
           </small>
-          <small>Admin beta · v0.2.3</small>
+          <small>Admin beta · v0.3.0</small>
         </div>
       </main>
     );
@@ -365,13 +502,22 @@ export default function App() {
           <Radar size={36} />
           <span className="eyebrow">PRIVATE BETA</span>
           <h1>
-            {access ? "Your email is verified." : "Checking your access…"}
+            {access
+              ? "Your email is verified."
+              : error
+                ? "Your workspace couldn’t load."
+                : "Checking your access…"}
           </h1>
           <p>
             {access
               ? `You’re signed in as ${access.email}. Your account is waiting for an invitation. If you’ve already been invited, make sure you used that exact email address.`
               : "Connecting to your workspace. The first request can take a little longer."}
           </p>
+          {!access && session?.user.email && (
+            <p className="signed-in-email">
+              Signed in as <strong>{session.user.email}</strong>
+            </p>
+          )}
           {error && (
             <div className="alert" role="alert">
               {error}
@@ -390,20 +536,16 @@ export default function App() {
             >
               Check access again
             </button>
-            {supabase && (
-              <button
-                className="secondary"
-                onClick={() => supabase.auth.signOut()}
-              >
-                Sign out
-              </button>
-            )}
+            {supabase && logoutButton}
           </div>
         </div>
       </main>
     );
   return (
     <div className="shell">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <aside>
         <a
           className="brand"
@@ -419,7 +561,7 @@ export default function App() {
           </span>
         </a>
         <span className="workspace-label">YOUR WORKSPACE</span>
-        <nav>
+        <nav aria-label="Primary navigation">
           {[
             [LayoutDashboard, "Home"],
             [ListTodo, "To do"],
@@ -432,7 +574,8 @@ export default function App() {
               <button
                 key={String(label)}
                 className={tab === label ? "nav-item active" : "nav-item"}
-                onClick={() => setTab(String(label))}
+                aria-current={tab === label ? "page" : undefined}
+                onClick={() => navigate(String(label))}
               >
                 <Component size={19} />
                 {String(label)}
@@ -456,15 +599,6 @@ export default function App() {
             <strong>{demo ? "Demo workspace" : session?.user.email}</strong>
             <small>Private beta</small>
           </div>
-          {session && (
-            <button
-              className="icon"
-              aria-label="Sign out"
-              onClick={() => supabase?.auth.signOut()}
-            >
-              <LogOut size={16} />
-            </button>
-          )}
         </div>
       </aside>
       <div className="main-wrap">
@@ -472,16 +606,20 @@ export default function App() {
           <span className="breadcrumb">
             Workspace <ChevronRight size={14} /> {tab}
           </span>
-          <div className="connection">
-            <span className="dot" />
-            Manual mode <span className="divider" /> Inbox not connected
+          <div className="header-actions">
+            <span className="connection">
+              <span className="dot" aria-hidden="true" />
+              Manual apply
+              <span className="inbox-state"> · Inbox not connected</span>
+            </span>
+            {session && supabase && logoutButton}
           </div>
         </header>
-        <main className="content">
+        <main className="content" id="main-content" tabIndex={-1}>
           <div className="page-heading">
             <div>
               <span className="eyebrow">YOUR SEARCH, IN FOCUS</span>
-              <h1>
+              <h1 id="page-title" tabIndex={-1}>
                 {tab === "Admin"
                   ? "Your beta, your guest list."
                   : tab === "Home"
@@ -536,9 +674,19 @@ export default function App() {
           {!state ? (
             <div className="panel empty">
               <Radar />
-              <h2>Connecting to your workspace</h2>
-              <p>Make sure the Python API is running.</p>
-              <button onClick={() => action(refresh)}>Retry connection</button>
+              <h2>
+                {error
+                  ? "Your workspace couldn’t load."
+                  : "Connecting to your workspace"}
+              </h2>
+              <p>
+                {error
+                  ? "Your sign-in is saved. Retry in a moment, or use Sign out above."
+                  : "This can take up to a minute while the service wakes up."}
+              </p>
+              <button disabled={busy} onClick={() => action(refresh)}>
+                {busy ? "Connecting…" : "Retry connection"}
+              </button>
             </div>
           ) : (
             <>
@@ -719,6 +867,7 @@ export default function App() {
                       ].map((f) => (
                         <button
                           className={filter === f ? "selected" : ""}
+                          aria-pressed={filter === f}
                           onClick={() => setFilter(f)}
                           key={f}
                         >
@@ -726,6 +875,24 @@ export default function App() {
                         </button>
                       ))}
                     </div>
+                    {tab === "Jobs" && (
+                      <label className="stage-filter">
+                        <span className="sr-only">
+                          Filter application stage
+                        </span>
+                        <select
+                          value={stageFilter}
+                          onChange={(e) => setStageFilter(e.target.value)}
+                        >
+                          <option>All stages</option>
+                          {stages
+                            .filter((s) => s !== "Archived")
+                            .map((s) => (
+                              <option key={s}>{s}</option>
+                            ))}
+                        </select>
+                      </label>
+                    )}
                     <label className="search">
                       <Search size={17} />
                       <input
@@ -745,6 +912,8 @@ export default function App() {
                             : filter === "All"
                               ? !j.filtered && j.stage !== "Archived"
                               : j.stage === filter && !j.filtered) &&
+                          (stageFilter === "All stages" ||
+                            j.stage === stageFilter) &&
                           `${j.title} ${j.company}`
                             .toLowerCase()
                             .includes(search.toLowerCase()),
@@ -794,19 +963,55 @@ export default function App() {
                         : filter === "All"
                           ? !j.filtered && j.stage !== "Archived"
                           : j.stage === filter && !j.filtered) &&
+                      (stageFilter === "All stages" ||
+                        j.stage === stageFilter) &&
                       `${j.title} ${j.company}`
                         .toLowerCase()
                         .includes(search.toLowerCase()),
                   ) && (
                     <div className="empty">
                       <BriefcaseBusiness size={30} />
-                      <h2>No opportunities here yet.</h2>
+                      <h2>
+                        {tab === "To do" && !todo.length
+                          ? "You're all caught up."
+                          : jobs.length
+                            ? "No jobs match these filters."
+                            : "No opportunities here yet."}
+                      </h2>
                       <p>
-                        Add a job link and paste its description to get started.
+                        {tab === "To do" && !todo.length
+                          ? "There are no applications waiting for your action."
+                          : jobs.length
+                            ? "Try another search or clear the selected filters."
+                            : "Add a job link and paste its description to get started."}
                       </p>
-                      <button onClick={() => setAddOpen(true)}>
-                        <Plus size={16} /> Add a job
-                      </button>
+                      {jobs.length &&
+                      (search ||
+                        filter !== "All" ||
+                        stageFilter !== "All stages") ? (
+                        <button
+                          className="secondary"
+                          onClick={() => {
+                            setSearch("");
+                            setFilter("All");
+                            setStageFilter("All stages");
+                          }}
+                        >
+                          Clear filters
+                        </button>
+                      ) : tab === "To do" && !todo.length ? (
+                        <button
+                          className="secondary"
+                          onClick={() => navigate("Jobs")}
+                        >
+                          View all jobs
+                        </button>
+                      ) : (
+                        <button onClick={() => setAddOpen(true)}>
+                          <Plus size={16} />
+                          Add a job
+                        </button>
+                      )}
                     </div>
                   )}
                 </section>
@@ -927,6 +1132,7 @@ export default function App() {
                           </summary>
                           <textarea
                             className="extracted"
+                            aria-label="Extracted resume text"
                             value={extracted}
                             onChange={(e) => setExtracted(e.target.value)}
                           />
@@ -1046,22 +1252,7 @@ export default function App() {
                       <button
                         className="danger"
                         disabled={busy}
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              "Delete all workspace data? This cannot be undone.",
-                            )
-                          )
-                            action(async () => {
-                              await api("/api/data", "DELETE");
-                              setResumeJson("");
-                              setExtracted("");
-                              setParseWarnings([]);
-                              setValidation(null);
-                              await refresh();
-                              setNotice("Workspace data deleted.");
-                            });
-                        }}
+                        onClick={() => setConfirmDelete(true)}
                       >
                         Delete workspace data
                       </button>
@@ -1077,174 +1268,190 @@ export default function App() {
           </footer>
         </main>
       </div>
-      {addOpen && (
-        <div className="modal-backdrop">
-          <section
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="add-title"
-          >
+      {confirmDelete && (
+        <Dialog
+          titleId="delete-title"
+          destructive
+          onClose={() => setConfirmDelete(false)}
+        >
+          <h2 id="delete-title">Delete workspace data?</h2>
+          <p>
+            This permanently removes your jobs, resume versions, preferences,
+            and activity. Your login account is kept. This cannot be undone.
+          </p>
+          <div className="button-row">
             <button
-              className="close icon"
-              aria-label="Close"
-              onClick={() => setAddOpen(false)}
+              data-initial-focus
+              className="secondary"
+              onClick={() => setConfirmDelete(false)}
             >
-              <X />
+              Cancel
             </button>
-            <span className="eyebrow">BUILD YOUR SHORTLIST</span>
-            <h2 id="add-title">Add an opportunity</h2>
-            <p className="muted">
-              Paste the description yourself. We don’t fetch or scrape the job
-              link.
-            </p>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const f = new FormData(e.currentTarget);
+            <button
+              className="danger"
+              disabled={busy}
+              onClick={() =>
                 action(async () => {
-                  await api("/api/jobs", "POST", Object.fromEntries(f));
+                  await api("/api/data", "DELETE");
+                  setResumeJson("");
+                  setExtracted("");
+                  setParseWarnings([]);
+                  setValidation(null);
                   await refresh();
-                  setAddOpen(false);
-                  setNotice("Opportunity added to your workspace.");
-                });
-              }}
+                  setConfirmDelete(false);
+                  setNotice("Workspace data deleted.");
+                })
+              }
             >
-              <div className="form-row">
-                <label>
-                  Job title
-                  <input name="title" required maxLength={200} />
-                </label>
-                <label>
-                  Company
-                  <input name="company" required maxLength={200} />
-                </label>
-              </div>
-              <label>
-                Original posting URL
-                <input name="url" type="url" required placeholder="https://…" />
-              </label>
-              <div className="form-row">
-                <label>
-                  Location
-                  <input name="location" />
-                </label>
-                <label>
-                  Disclosed salary (optional)
-                  <input name="salary" placeholder="e.g. ₹18–24 LPA" />
-                </label>
-              </div>
-              <label>
-                Job description
-                <textarea
-                  name="description"
-                  required
-                  minLength={10}
-                  maxLength={40000}
-                  rows={6}
-                />
-              </label>
-              {error && (
-                <p role="alert" className="error-text">
-                  {error}
-                </p>
-              )}
-              <button disabled={busy}>
-                {busy ? "Saving…" : "Add to my jobs"} <Plus size={16} />
-              </button>
-            </form>
-          </section>
-        </div>
-      )}
-      {selected && (
-        <div className="modal-backdrop">
-          <section
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="job-title"
-          >
-            <button
-              className="close icon"
-              aria-label="Close"
-              onClick={() => setSelected(null)}
-            >
-              <X />
+              {busy ? "Deleting…" : "Delete permanently"}
             </button>
-            <span className="eyebrow">
-              {selected.company} · {selected.location}
-            </span>
-            <h2 id="job-title">{selected.title}</h2>
-            <span className="stage">{selected.stage}</span>
-            {alreadyApplied(selected) && (
-              <p className="success" role="status">
-                <Check size={16} /> Already applied
-                {selected.applied_at
-                  ? ` · ${new Date(selected.applied_at).toLocaleDateString()}`
-                  : ""}
-              </p>
-            )}
-            <p>{selected.reason}</p>
-            <p>
-              <strong>{selected.salary || "Salary not disclosed"}</strong>
+          </div>
+          {error && (
+            <p role="alert" className="error-text">
+              {error}
             </p>
-            <div className="button-row">
-              <a
-                className="button"
-                href={selected.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Open original posting <ArrowUpRight size={17} />
-              </a>
-              <button
-                className="secondary"
-                disabled={busy || alreadyApplied(selected)}
-                onClick={() => action(() => move(selected, "Applied (Manual)"))}
-              >
-                {alreadyApplied(selected)
-                  ? "Already applied"
-                  : "Mark as applied"}
-              </button>
+          )}
+        </Dialog>
+      )}
+      {addOpen && (
+        <Dialog titleId="add-title" onClose={() => setAddOpen(false)}>
+          <span className="eyebrow">BUILD YOUR SHORTLIST</span>
+          <h2 id="add-title">Add an opportunity</h2>
+          <p className="muted">
+            Paste the description yourself. We don’t fetch or scrape the job
+            link.
+          </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget);
+              action(async () => {
+                await api("/api/jobs", "POST", Object.fromEntries(f));
+                await refresh();
+                setAddOpen(false);
+                setNotice("Opportunity added to your workspace.");
+              });
+            }}
+          >
+            <div className="form-row">
+              <label>
+                Job title
+                <input name="title" required maxLength={200} />
+              </label>
+              <label>
+                Company
+                <input name="company" required maxLength={200} />
+              </label>
             </div>
-            <details>
-              <summary>Job description</summary>
-              <p className="description">{selected.description}</p>
-            </details>
-            <details>
-              <summary>Change stage</summary>
-              <select
-                aria-label="Application stage"
-                value={selected.stage}
-                disabled={busy}
-                onChange={(e) => action(() => move(selected, e.target.value))}
-              >
-                {!stages.includes(selected.stage) && (
-                  <option>{selected.stage}</option>
-                )}
-                {stages.map((s) => (
-                  <option
-                    key={s}
-                    disabled={
-                      s === "Applied (Manual)" && alreadyApplied(selected)
-                    }
-                  >
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </details>
+            <label>
+              Original posting URL
+              <input name="url" type="url" required placeholder="https://…" />
+            </label>
+            <div className="form-row">
+              <label>
+                Location
+                <input name="location" />
+              </label>
+              <label>
+                Disclosed salary (optional)
+                <input name="salary" placeholder="e.g. ₹18–24 LPA" />
+              </label>
+            </div>
+            <label>
+              Job description
+              <textarea
+                name="description"
+                required
+                minLength={10}
+                maxLength={40000}
+                rows={6}
+              />
+            </label>
             {error && (
-              <p className="error-text" role="alert">
+              <p role="alert" className="error-text">
                 {error}
               </p>
             )}
-            <p className="muted">
-              Apply on the original portal, then return here and choose Mark as
-              applied. Opening the link does not change your application stage.
+            <button disabled={busy}>
+              {busy ? "Saving…" : "Add to my jobs"} <Plus size={16} />
+            </button>
+          </form>
+        </Dialog>
+      )}
+      {selected && (
+        <Dialog titleId="job-title" onClose={() => setSelected(null)}>
+          <span className="eyebrow">
+            {selected.company} · {selected.location}
+          </span>
+          <h2 id="job-title">{selected.title}</h2>
+          <span className="stage">{selected.stage}</span>
+          {alreadyApplied(selected) && (
+            <p className="success" role="status">
+              <Check size={16} /> Already applied
+              {selected.applied_at
+                ? ` · ${new Date(selected.applied_at).toLocaleDateString()}`
+                : ""}
             </p>
-          </section>
-        </div>
+          )}
+          <p>{selected.reason}</p>
+          <p>
+            <strong>{selected.salary || "Salary not disclosed"}</strong>
+          </p>
+          <div className="button-row">
+            <a
+              className="button"
+              aria-label="Open original posting (opens in a new tab)"
+              href={selected.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open original posting <ArrowUpRight size={17} />
+            </a>
+            <button
+              className="secondary"
+              disabled={busy || alreadyApplied(selected)}
+              onClick={() => action(() => move(selected, "Applied (Manual)"))}
+            >
+              {alreadyApplied(selected) ? "Already applied" : "Mark as applied"}
+            </button>
+          </div>
+          <details>
+            <summary>Job description</summary>
+            <p className="description">{selected.description}</p>
+          </details>
+          <details>
+            <summary>Change stage</summary>
+            <select
+              aria-label="Application stage"
+              value={selected.stage}
+              disabled={busy}
+              onChange={(e) => action(() => move(selected, e.target.value))}
+            >
+              {!stages.includes(selected.stage) && (
+                <option>{selected.stage}</option>
+              )}
+              {stages.map((s) => (
+                <option
+                  key={s}
+                  disabled={
+                    s === "Applied (Manual)" && alreadyApplied(selected)
+                  }
+                >
+                  {s}
+                </option>
+              ))}
+            </select>
+          </details>
+          {error && (
+            <p className="error-text" role="alert">
+              {error}
+            </p>
+          )}
+          <p className="muted">
+            Apply on the original portal, then return here and choose Mark as
+            applied. Opening the link does not change your application stage.
+          </p>
+        </Dialog>
       )}
     </div>
   );
