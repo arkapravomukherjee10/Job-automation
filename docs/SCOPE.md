@@ -8,7 +8,7 @@ All applications are manual. Auto-apply is removed from the roadmap, including s
 
 Users open the original posting, apply on the portal and return to mark the job Applied (Manual). Opening a link is not evidence of submission and does not change status. Future read-only Gmail integration may identify confirmation and status emails; it is not implemented yet.
 
-Implemented: manual job ingestion and tracking, simple deterministic scoring/filtering, per-user persisted preferences, resume text extraction and structured version confirmation, consistency validation, activity history, production JWT invitation enforcement, local demo and deployment configuration.
+Implemented: manual job ingestion and tracking, simple deterministic scoring/filtering, per-user persisted preferences, resume text extraction and structured version confirmation, consistency validation, activity history, production JWT invitation enforcement and owner-admin invitation management, local demo and deployment configuration.
 
 Deliberate limitations:
 - No Gmail/ATS/aggregator fetches, AI calls, or scheduled ingestion workers. UI states explicitly report unavailable connections. No third-party credentials are collected.
@@ -20,3 +20,5 @@ Deliberate limitations:
 - Local SQLite validation is not proof that the Supabase production configuration works.
 
 Before external beta: exercise production authorization and PostgreSQL RLS; add API rate limiting and parser resource isolation; complete user-data deletion. Before live integration: verify provider terms, Gmail OAuth requirements, consent scopes and per-user encrypted secret storage.
+
+Admin access is fixed to arkapravo.mukherjee10@gmail.com after email verification. Invitation management is now inside the app; Supabase only supplies authentication. Signups are tracked when a verified account first reaches the app. Pending and revoked accounts cannot access private features. Inviting does not send an outbound email automatically.

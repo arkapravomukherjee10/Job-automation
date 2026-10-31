@@ -14,17 +14,12 @@ from sqlalchemy.pool import StaticPool
 from .validation import Resume, validate_resume
 from .parsing import prefill_resume
 from .database import connection_url
+from .access import AccessStore, Identity, InvitationInput, OWNER_EMAIL, normalize_email
 
 MODE = os.getenv("APP_MODE", "production")
 DB = os.getenv("DATABASE_URL", "sqlite:///./jobradar.db")
-if MODE != "development" and (
-    DB.startswith("sqlite")
-    or not os.getenv("SUPABASE_URL")
-    or not os.getenv("INVITED_EMAILS")
-):
-    raise RuntimeError(
-        "Production requires PostgreSQL, SUPABASE_URL and INVITED_EMAILS."
-    )
+if MODE != "development" and (DB.startswith("sqlite") or not os.getenv("SUPABASE_URL")):
+    raise RuntimeError("Production requires PostgreSQL and SUPABASE_URL.")
 engine = create_engine(
     connection_url(DB, os.getenv("DB_PASSWORD")),
     **(
@@ -48,6 +43,8 @@ with engine.begin() as c:
     if not DB.startswith("sqlite"):
         c.execute(text("ALTER TABLE records ENABLE ROW LEVEL SECURITY"))
         c.execute(text("REVOKE ALL ON records FROM anon, authenticated"))
+access_store = AccessStore(engine, postgres=not DB.startswith("sqlite"))
+access_store.seed_legacy(os.getenv("INVITED_EMAILS", "").split(","))
 app = FastAPI(title="Job Radar API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
@@ -63,9 +60,9 @@ jwks = (
 )
 
 
-def user(authorization: str | None = Header(default=None)):
+def authenticated_identity(authorization: str | None = Header(default=None)):
     if MODE == "development":
-        return "local-demo"
+        return Identity("local-demo", OWNER_EMAIL)
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, "Sign in required")
     token = authorization[7:]
@@ -81,14 +78,74 @@ def user(authorization: str | None = Header(default=None)):
         )
     except Exception:
         raise HTTPException(401, "Invalid or expired session")
-    allowed = {
-        x.strip().casefold()
-        for x in os.getenv("INVITED_EMAILS", "").split(",")
-        if x.strip()
+    # Require a signed Supabase email-verification method, never user-editable metadata.
+    amr = claims.get("amr")
+    methods = (
+        {entry.get("method") for entry in amr if isinstance(entry, dict)}
+        if isinstance(amr, list)
+        else set()
+    )
+    if not methods.intersection({"otp", "invite"}):
+        raise HTTPException(
+            403, "Verify your email using a sign-in link or one-time code"
+        )
+    if (
+        not isinstance(claims["email"], str)
+        or not isinstance(claims["sub"], str)
+        or not claims["sub"]
+    ):
+        raise HTTPException(401, "Invalid session identity")
+    return Identity(claims["sub"], normalize_email(claims["email"]))
+
+
+def user(identity: Identity = Depends(authenticated_identity)):
+    if not access_store.allowed(identity):
+        raise HTTPException(
+            403, "Your email is verified, but beta access has not been granted"
+        )
+    return identity.id
+
+
+def super_admin(identity: Identity = Depends(authenticated_identity)):
+    if identity.email != OWNER_EMAIL:
+        raise HTTPException(403, "Super admin access required")
+    return identity
+
+
+@app.get("/api/access")
+def access(identity: Identity = Depends(authenticated_identity)):
+    access_store.remember(identity)
+    return {
+        "email": identity.email,
+        "allowed": access_store.allowed(identity),
+        "is_admin": identity.email == OWNER_EMAIL,
     }
-    if claims["email"].casefold() not in allowed:
-        raise HTTPException(403, "This beta is invitation only")
-    return claims["sub"]
+
+
+@app.get("/api/admin/users")
+def admin_users(identity: Identity = Depends(super_admin)):
+    return access_store.dashboard()
+
+
+@app.post("/api/admin/invitations", status_code=201)
+def invite_user(invitation: InvitationInput, identity: Identity = Depends(super_admin)):
+    if invitation.email == OWNER_EMAIL:
+        raise HTTPException(400, "The super admin already has access")
+    access_store.invite(invitation.email, identity.id)
+    audit(identity.id, "Beta access granted to " + invitation.email)
+    return {"email": invitation.email, "active": True}
+
+
+@app.post("/api/admin/invitations/revoke")
+def revoke_invitation(
+    invitation: InvitationInput, identity: Identity = Depends(super_admin)
+):
+    if invitation.email == OWNER_EMAIL:
+        raise HTTPException(400, "Super admin access cannot be revoked")
+    if not access_store.revoke(invitation.email):
+        raise HTTPException(404, "Active invitation not found")
+    audit(identity.id, "Beta access revoked for " + invitation.email)
+    return {"email": invitation.email, "active": False}
 
 
 def records(owner, kind):

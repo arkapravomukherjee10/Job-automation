@@ -12,6 +12,8 @@ import pytest
 def client():
     with engine.begin() as c:
         c.execute(text("DELETE FROM records"))
+        c.execute(text("DELETE FROM beta_invitations"))
+        c.execute(text("DELETE FROM beta_members"))
     app.dependency_overrides.clear()
     with TestClient(app) as c:
         yield c
@@ -140,7 +142,14 @@ def test_upload_rules_and_docx_extraction(client):
     from io import BytesIO
 
     doc = Document()
-    for line in ["Alex Example", "Experience", "Engineer | Example Labs | 2022–2025", "• Built 5 Python services.", "Skills", "Python, SQL"]:
+    for line in [
+        "Alex Example",
+        "Experience",
+        "Engineer | Example Labs | 2022–2025",
+        "• Built 5 Python services.",
+        "Skills",
+        "Python, SQL",
+    ]:
         doc.add_paragraph(line)
     stream = BytesIO()
     doc.save(stream)
@@ -213,7 +222,9 @@ def test_real_jwt_verification_and_invite_enforcement(client, monkeypatch):
         ),
     )
     monkeypatch.setenv("INVITED_EMAILS", "invited@example.com")
+    main.access_store.seed_legacy(["invited@example.com"])
     claims = {
+        "amr": [{"method": "otp"}],
         "sub": "user-id",
         "email": "invited@example.com",
         "aud": "authenticated",

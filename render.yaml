@@ -18,7 +18,5 @@ services:
         sync: false
       - key: SUPABASE_URL
         sync: false
-      - key: INVITED_EMAILS
-        sync: false
       - key: FRONTEND_ORIGINS
         sync: false

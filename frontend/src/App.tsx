@@ -1,5 +1,6 @@
+import AdminPanel from "./AdminPanel";
 import ResumeEditor from "./ResumeEditor";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useRef, type FormEvent } from "react";
 import { createClient, type Session } from "@supabase/supabase-js";
 import {
   Radar,
@@ -48,6 +49,7 @@ type Job = {
   filtered: boolean;
   applied_at?: string;
 };
+type Access = { email: string; allowed: boolean; is_admin: boolean };
 type State = {
   preferences: Preferences;
   jobs: Job[];
@@ -77,11 +79,17 @@ const cleanResume = (r: Resume) => ({
   bullets: r.bullets,
 });
 
-const alreadyApplied = (job: Job) => Boolean(job.applied_at) || ["Applied (Manual)", "In Review", "Interview", "Offer", "Rejected"].includes(job.stage);
+const alreadyApplied = (job: Job) =>
+  Boolean(job.applied_at) ||
+  ["Applied (Manual)", "In Review", "Interview", "Offer", "Rejected"].includes(
+    job.stage,
+  );
 
 export default function App() {
+  const currentUser = useRef<string|null>(null);
   const [session, setSession] = useState<Session | null>(null),
     [tab, setTab] = useState("Home"),
+    [access, setAccess] = useState<Access | null>(null),
     [state, setState] = useState<State | null>(null),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -124,6 +132,13 @@ export default function App() {
       const data = await response
         .json()
         .catch(() => ({ detail: "Request failed" }));
+      if (response.status === 403 && !path.startsWith("/api/admin/")) {
+        setState(null);
+        setAccess((previous) =>
+          previous ? { ...previous, allowed: false, is_admin: false } : null,
+        );
+        setSelected(null);
+      }
       throw new Error(
         typeof data.detail === "string"
           ? data.detail
@@ -149,26 +164,49 @@ export default function App() {
   }
   useEffect(() => {
     if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_event, value) =>
-      setSession(value),
-    );
+    const applySession = (value:Session|null) => {
+      const nextUser = value?.user.id || null;
+      if(currentUser.current !== nextUser) {
+        currentUser.current = nextUser;
+        setAccess(null); setState(null); setTab('Home'); setSelected(null);
+        setResumeJson(''); setExtracted(''); setParseWarnings([]); setValidation(null);
+      }
+      setSession(value);
+    };
+    supabase.auth.getSession().then(({data})=>applySession(data.session));
+    const {data} = supabase.auth.onAuthStateChange((_event,value)=>applySession(value));
     return () => data.subscription.unsubscribe();
   }, []);
   useEffect(() => {
     if (!demo && !session) return;
     let active = true;
-    const load = () =>
-      refresh().catch((e) => {
-        if (active) setError(e.message);
-      });
+    setAccess(null);
+    setState(null);
+    const load = async () => {
+      try {
+        const current = await api("/api/access");
+        if (!active) return;
+        setAccess(current);
+        setError("");
+        if (!current.allowed) {
+          setState(null);
+          setSelected(null);
+          return;
+        }
+        const next = await api("/api/state");
+        if (active) setState(next);
+      } catch (e) {
+        if (active)
+          setError(e instanceof Error ? e.message : "Could not check access");
+      }
+    };
     load();
     const id = setInterval(load, 30000);
     return () => {
       active = false;
       clearInterval(id);
     };
-  }, [session]);
+  }, [session?.user.id]);
   const jobs = state?.jobs || [],
     activeJobs = jobs.filter((j) => !j.filtered && j.stage !== "Archived"),
     todo = jobs.filter((j) =>
@@ -281,11 +319,16 @@ export default function App() {
                   } else {
                     const { error } = await supabase.auth.signInWithOtp({
                       email,
-                      options: { shouldCreateUser: false },
+                      options: {
+                        shouldCreateUser: true,
+                        emailRedirectTo: window.location.origin,
+                      },
                     });
                     if (error) throw error;
                     setSent(true);
-                    setNotice("Check your email for your sign-in code.");
+                    setNotice(
+                      "Check your email for a sign-in link. Open it, or enter the code if your email includes one.",
+                    );
                   }
                 });
               }}
@@ -318,7 +361,54 @@ export default function App() {
           )}
           {error && <div className="alert">{error}</div>}
           {notice && <p role="status">{notice}</p>}
-          <small>Access is limited to invited accounts.</small>
+          <small>
+            Verify your email to continue. App features are available to invited
+            users.
+          </small>
+        </div>
+      </main>
+    );
+  if (!access || !access.allowed)
+    return (
+      <main className="login">
+        <div className="login-card">
+          <Radar size={36} />
+          <span className="eyebrow">PRIVATE BETA</span>
+          <h1>
+            {access ? "Your email is verified." : "Checking your access…"}
+          </h1>
+          <p>
+            {access
+              ? `You’re signed in as ${access.email}. Your account is waiting for an invitation. If you’ve already been invited, make sure you used that exact email address.`
+              : "Connecting to your workspace. The first request can take a little longer."}
+          </p>
+          {error && (
+            <div className="alert" role="alert">
+              {error}
+            </div>
+          )}
+          <div className="button-row">
+            <button
+              disabled={busy}
+              onClick={() =>
+                action(async () => {
+                  const current = await api("/api/access");
+                  setAccess(current);
+                  if (current.allowed) await refresh();
+                })
+              }
+            >
+              Check access again
+            </button>
+            {supabase && (
+              <button
+                className="secondary"
+                onClick={() => supabase.auth.signOut()}
+              >
+                Sign out
+              </button>
+            )}
+          </div>
         </div>
       </main>
     );
@@ -345,6 +435,7 @@ export default function App() {
             [ListTodo, "To do"],
             [BriefcaseBusiness, "Jobs"],
             [Settings, "Settings"],
+            ...(access.is_admin ? [[ShieldCheck, "Admin"]] : []),
           ].map(([Icon, label]) => {
             const Component = Icon as typeof Radar;
             return (
@@ -401,25 +492,29 @@ export default function App() {
             <div>
               <span className="eyebrow">YOUR SEARCH, IN FOCUS</span>
               <h1>
-                {tab === "Home"
-                  ? "A little clarity. A big next step."
-                  : tab === "To do"
-                    ? "Make your next move."
-                    : tab === "Jobs"
-                      ? "Every opportunity, one place."
-                      : "Make this search yours."}
+                {tab === "Admin"
+                  ? "Your beta, your guest list."
+                  : tab === "Home"
+                    ? "A little clarity. A big next step."
+                    : tab === "To do"
+                      ? "Make your next move."
+                      : tab === "Jobs"
+                        ? "Every opportunity, one place."
+                        : "Make this search yours."}
               </h1>
               <p>
-                {tab === "Home"
-                  ? "Good opportunities deserve your attention. Let’s find your next one."
-                  : tab === "To do"
-                    ? "Review the details, then take the next step on your terms."
-                    : tab === "Jobs"
-                      ? "A clear view of where you are and what comes next."
-                      : "Your preferences shape your matches. You stay in control."}
+                {tab === "Admin"
+                  ? "Invite people and see who has joined Job Radar."
+                  : tab === "Home"
+                    ? "Good opportunities deserve your attention. Let’s find your next one."
+                    : tab === "To do"
+                      ? "Review the details, then take the next step on your terms."
+                      : tab === "Jobs"
+                        ? "A clear view of where you are and what comes next."
+                        : "Your preferences shape your matches. You stay in control."}
               </p>
             </div>
-            {tab !== "Settings" && (
+            {tab !== "Settings" && tab !== "Admin" && (
               <button onClick={() => setAddOpen(true)}>
                 <Plus size={17} /> Add a job
               </button>
@@ -690,7 +785,14 @@ export default function App() {
                             {j.score === null ? "—" : j.score}
                             <small>skill fit</small>
                           </span>
-                          <span><span className="stage">{j.stage}</span>{alreadyApplied(j) && <small style={{display:"block",marginTop:5}}>✓ Already applied</small>}</span>
+                          <span>
+                            <span className="stage">{j.stage}</span>
+                            {alreadyApplied(j) && (
+                              <small style={{ display: "block", marginTop: 5 }}>
+                                ✓ Already applied
+                              </small>
+                            )}
+                          </span>
                           <ChevronRight size={17} />
                         </button>
                       ))}
@@ -718,6 +820,9 @@ export default function App() {
                     </div>
                   )}
                 </section>
+              )}
+              {tab === "Admin" && access.is_admin && (
+                <AdminPanel request={api} />
               )}
               {tab === "Settings" && (
                 <div className="settings-grid">
@@ -836,14 +941,29 @@ export default function App() {
                             onChange={(e) => setExtracted(e.target.value)}
                           />
                           <p className="muted">
-                            The fields below are prefilled from this text. Correct any missing details or extraction mistakes before confirming.
+                            The fields below are prefilled from this text.
+                            Correct any missing details or extraction mistakes
+                            before confirming.
                           </p>
                         </details>
                       )}
-                      <button className="secondary" onClick={resumeEditor} disabled={!!resumeJson}>
+                      <button
+                        className="secondary"
+                        onClick={resumeEditor}
+                        disabled={!!resumeJson}
+                      >
                         Review and edit resume
                       </button>
-                      {parseWarnings.length > 0 && <div className="success"><div><strong>Please review</strong>{parseWarnings.map(w=><p key={w}>{w}</p>)}</div></div>}
+                      {parseWarnings.length > 0 && (
+                        <div className="success">
+                          <div>
+                            <strong>Please review</strong>
+                            {parseWarnings.map((w) => (
+                              <p key={w}>{w}</p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {resumeJson && (
                         <>
                           <ResumeEditor
@@ -1066,7 +1186,14 @@ export default function App() {
             </span>
             <h2 id="job-title">{selected.title}</h2>
             <span className="stage">{selected.stage}</span>
-            {alreadyApplied(selected) && <p className="success" role="status"><Check size={16}/> Already applied{selected.applied_at ? ` · ${new Date(selected.applied_at).toLocaleDateString()}` : ""}</p>}
+            {alreadyApplied(selected) && (
+              <p className="success" role="status">
+                <Check size={16} /> Already applied
+                {selected.applied_at
+                  ? ` · ${new Date(selected.applied_at).toLocaleDateString()}`
+                  : ""}
+              </p>
+            )}
             <p>{selected.reason}</p>
             <p>
               <strong>{selected.salary || "Salary not disclosed"}</strong>
@@ -1085,7 +1212,9 @@ export default function App() {
                 disabled={busy || alreadyApplied(selected)}
                 onClick={() => action(() => move(selected, "Applied (Manual)"))}
               >
-                {alreadyApplied(selected) ? "Already applied" : "Mark as applied"}
+                {alreadyApplied(selected)
+                  ? "Already applied"
+                  : "Mark as applied"}
               </button>
             </div>
             <details>
@@ -1104,7 +1233,14 @@ export default function App() {
                   <option>{selected.stage}</option>
                 )}
                 {stages.map((s) => (
-                  <option key={s} disabled={s === "Applied (Manual)" && alreadyApplied(selected)}>{s}</option>
+                  <option
+                    key={s}
+                    disabled={
+                      s === "Applied (Manual)" && alreadyApplied(selected)
+                    }
+                  >
+                    {s}
+                  </option>
                 ))}
               </select>
             </details>

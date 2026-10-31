@@ -13,7 +13,7 @@ Applications are always submitted by the user on the original portal. Open a pos
 - Basic deterministic preferred-skills scoring, role/location substring filters, company exclusions, near misses, duplicate URL prevention and manual stage changes.
 - PDF/DOCX text extraction (5 MB), explicit resume-processing consent, manual structured confirmation, immutable saved base versions.
 - Python consistency checks for exact structured facts, confirmed skills, source IDs, source-specific numbers, similarity and length.
-- Tenant-scoped persistence and invite-list authorization with verified Supabase JWTs in production. Explicit local development mode needs no external credentials.
+- Tenant-scoped persistence and application-managed invitations and owner-only Admin portal with verified Supabase JWTs in production. Explicit local development mode needs no external credentials.
 
 ## Run locally
 
@@ -47,3 +47,7 @@ npm run build
 ```
 
 See [deployment instructions](docs/DEPLOYMENT.md) and [scope and remaining work](docs/SCOPE.md).
+
+## Invite-only beta administration
+
+Sign in as **arkapravo.mukherjee10@gmail.com** using an email link or code, then open **Admin**. Add invited email addresses and share the app link; users verify their own email. No manual Supabase user creation or Render invitation-list editing is needed. The admin list records first verified app sign-ins and waiting accounts. Removing access blocks subsequent private API requests while retaining workspace data. Supabase email signup and email delivery must be enabled.
