@@ -312,22 +312,19 @@ export default function App() {
                   if (sent) {
                     const { error } = await supabase.auth.verifyOtp({
                       email,
-                      token: code,
+                      token: code.trim(),
                       type: "email",
                     });
                     if (error) throw error;
                   } else {
                     const { error } = await supabase.auth.signInWithOtp({
                       email,
-                      options: {
-                        shouldCreateUser: true,
-                        emailRedirectTo: window.location.origin,
-                      },
+                      options: { shouldCreateUser: true },
                     });
                     if (error) throw error;
                     setSent(true);
                     setNotice(
-                      "Check your email for a sign-in link. Open it, or enter the code if your email includes one.",
+                      "Enter the one-time code sent to your email. No sign-in link is needed.",
                     );
                   }
                 });
@@ -338,6 +335,7 @@ export default function App() {
                 <input
                   type="email"
                   required
+                  readOnly={sent}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -350,13 +348,16 @@ export default function App() {
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     autoComplete="one-time-code"
+                    inputMode="numeric"
+                    autoFocus
                   />
                 </label>
               )}
               <button disabled={busy}>
-                {sent ? "Sign in" : "Send sign-in code"}{" "}
+                {sent ? "Verify code and sign in" : "Send sign-in code"}{" "}
                 <ArrowUpRight size={16} />
               </button>
+              {sent && <button type="button" className="secondary" disabled={busy} onClick={()=>{setSent(false);setCode('');setNotice('');setError('')}}>Use a different email or request a new code</button>}
             </form>
           )}
           {error && <div className="alert">{error}</div>}
@@ -365,7 +366,7 @@ export default function App() {
             Verify your email to continue. App features are available to invited
             users.
           </small>
-          <small>Admin beta · v0.2.1</small>
+          <small>Admin beta · v0.2.2</small>
         </div>
       </main>
     );
