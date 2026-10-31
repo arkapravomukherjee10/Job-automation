@@ -365,6 +365,7 @@ export default function App() {
             Verify your email to continue. App features are available to invited
             users.
           </small>
+          <small>Admin beta · v0.2.1</small>
         </div>
       </main>
     );
