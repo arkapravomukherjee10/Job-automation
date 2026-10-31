@@ -99,7 +99,6 @@ export default function App() {
     [search, setSearch] = useState(""),
     [filter, setFilter] = useState("All"),
     [email, setEmail] = useState(""),
-    [code, setCode] = useState(""),
     [sent, setSent] = useState(false),
     [resumeJson, setResumeJson] = useState(""),
     [extracted, setExtracted] = useState(""),
@@ -162,6 +161,16 @@ export default function App() {
       setBusy(false);
     }
   }
+  useEffect(()=>{
+    const location = new URL(window.location.href);
+    const fragment = new URLSearchParams(location.hash.slice(1));
+    if(fragment.has('error') || location.searchParams.has('error')) {
+      setError('This sign-in link is invalid or has expired. Request a new link below and use the newest email.');
+      for(const key of ['error','error_code','error_description'])location.searchParams.delete(key);
+      location.hash='';
+      window.history.replaceState(null,'',location.pathname+location.search);
+    }
+  },[]);
   useEffect(() => {
     if (!supabase) return;
     const applySession = (value:Session|null) => {
@@ -173,7 +182,10 @@ export default function App() {
       }
       setSession(value);
     };
-    supabase.auth.getSession().then(({data})=>applySession(data.session));
+    supabase.auth.getSession().then(({data,error})=>{
+      if(error)setError('This sign-in link could not be verified. Request a new link and use the newest email.');
+      applySession(data.session);
+    });
     const {data} = supabase.auth.onAuthStateChange((_event,value)=>applySession(value));
     return () => data.subscription.unsubscribe();
   }, []);
@@ -309,24 +321,13 @@ export default function App() {
               onSubmit={(e) => {
                 e.preventDefault();
                 action(async () => {
-                  if (sent) {
-                    const { error } = await supabase.auth.verifyOtp({
-                      email,
-                      token: code.trim(),
-                      type: "email",
-                    });
-                    if (error) throw error;
-                  } else {
-                    const { error } = await supabase.auth.signInWithOtp({
-                      email,
-                      options: { shouldCreateUser: true },
-                    });
-                    if (error) throw error;
-                    setSent(true);
-                    setNotice(
-                      "Enter the one-time code sent to your email. No sign-in link is needed.",
-                    );
-                  }
+                  const {error} = await supabase.auth.signInWithOtp({
+                    email: email.trim(),
+                    options: {shouldCreateUser:true, emailRedirectTo:window.location.origin},
+                  });
+                  if(error) throw error;
+                  setSent(true);
+                  setNotice("Check your email and click the sign-in link. It will verify your email and open Job Radar automatically. Use the newest email; each link works once.");
                 });
               }}
             >
@@ -340,24 +341,11 @@ export default function App() {
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </label>
-              {sent && (
-                <label>
-                  One-time code
-                  <input
-                    required
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    autoComplete="one-time-code"
-                    inputMode="numeric"
-                    autoFocus
-                  />
-                </label>
-              )}
               <button disabled={busy}>
-                {sent ? "Verify code and sign in" : "Send sign-in code"}{" "}
+                {sent ? "Send another sign-in link" : "Email me a sign-in link"}{" "}
                 <ArrowUpRight size={16} />
               </button>
-              {sent && <button type="button" className="secondary" disabled={busy} onClick={()=>{setSent(false);setCode('');setNotice('');setError('')}}>Use a different email or request a new code</button>}
+              {sent && <button type="button" className="secondary" disabled={busy} onClick={()=>{setSent(false);setNotice('');setError('')}}>Use a different email</button>}
             </form>
           )}
           {error && <div className="alert">{error}</div>}
@@ -366,7 +354,7 @@ export default function App() {
             Verify your email to continue. App features are available to invited
             users.
           </small>
-          <small>Admin beta · v0.2.2</small>
+          <small>Admin beta · v0.2.3</small>
         </div>
       </main>
     );

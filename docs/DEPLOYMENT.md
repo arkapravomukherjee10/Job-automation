@@ -5,7 +5,7 @@ Deployment: frontend https://job-radar-940.pages.dev and API https://job-radar-a
 ## Supabase
 
 1. Create a project and retain the project URL, public anonymous key, and PostgreSQL connection string securely. Never place a database password or service-role key in frontend variables.
-2. Enable email signups with email verification in Supabase. The app controls beta authorization; uninvited verified accounts see only a waiting screen. Login uses emailed one-time codes with account creation enabled. Configure a supported SMTP provider and test email delivery; Supabase default delivery can be restricted to project-team addresses.
+2. Enable email signups with email verification in Supabase. The app controls beta authorization; uninvited verified accounts see only a waiting screen. Login uses Supabase default emailed sign-in links with account creation enabled. Configure a supported SMTP provider and test email delivery; Supabase default delivery can be restricted to project-team addresses.
 3. Use an asymmetric JWT signing key (ES256 or RS256). The backend verifies issuer, audience, expiry and signature via the project's JWKS endpoint. Legacy HS256 tokens are not accepted.
 4. Use the provider's compatible PostgreSQL pooler connection with TLS (`sslmode=require`) and the SQLAlchemy `postgresql+psycopg://` scheme. The backend creates the records table and enables RLS with no direct client policies; anon/authenticated table privileges are revoked. Backend DB credentials must have the rights to create tables and manage RLS. Do not grant frontend roles access to this table.
 5. Sign in as arkapravo.mukherjee10@gmail.com to access the Admin screen. Add or remove invited emails and view first verified app sign-ins there. No manual Supabase account creation is needed. Existing INVITED_EMAILS entries are imported once per email; revocations survive restarts. Adding an email grants access but does not send an email; share the app link with the user.
@@ -26,7 +26,7 @@ Free service sleep, memory and execution limits constrain processing. No durable
 - VITE_SUPABASE_ANON_KEY: public project anonymous key
 - VITE_LOCAL_DEMO: false (never true for a public deployment)
 
-Set the final Pages origin in Render's FRONTEND_ORIGINS. The included redirects support SPA navigation. Configure authentication redirect URLs in Supabase if using invitation links. The sign-in UI uses email OTP codes, with account creation enabled. Authorization requires a signed otp/invite authentication method and checks current invitations on every private request.
+Set the final Pages origin in Render's FRONTEND_ORIGINS. The included redirects support SPA navigation. Configure authentication redirect URLs in Supabase if using invitation links. The sign-in UI uses email links with account creation enabled. Authorization requires a signed otp/invite authentication method and checks current invitations on every private request.
 
 ## Release checks
 
@@ -42,6 +42,8 @@ Set `DATABASE_URL` without a password, for example `postgresql+psycopg://postgre
 
 The owner email is fixed server-side to arkapravo.mukherjee10@gmail.com. The app creates RLS-protected beta_invitations and beta_members tables; frontend database roles have no direct access. Admins see signup metadata only, not other users' jobs or resumes. Signup tracking begins at first verified app sign-in, not unverified email attempts or historical Supabase-only accounts. Revocation blocks subsequent private requests using existing tokens and preserves user data. Bootstrap admin access cannot be removed through the invitation list. No service-role key is needed.
 
-## Code-only login email templates
+## Default email-link login
 
-In hosted Supabase Authentication > Emails (sometimes under Notifications > Email), edit both **Magic Link** (returning users) and **Confirm signup** (new users). Set the subject to `Your Job Radar sign-in code` and paste the body from `supabase/templates/email_code.html`. Its `{{ .Token }}` expression renders the actual one-time code; `{{ .ConfirmationURL }}` renders a link instead. Save both templates. Changing the local config alone does not apply hosted templates. Keep email verification enabled. Request a fresh code after saving and enter it into Job Radar. Never ask users to share codes or log them. Email provider restrictions and rate limits still apply.
+No hosted template changes are required. Use Supabase default Magic link or OTP and Confirm signup templates containing a confirmation URL. In Authentication > URL Configuration, set Site URL to `https://job-radar-940.pages.dev` and allow that same origin in redirect URLs. New and returning users request a sign-in link in the app, open the newest email link, and return to the dashboard or waiting screen. The Supabase client automatically consumes the verified session from the redirect. Do not share links or tokens. Invalid/expired link returns show a message inviting the user to request a fresh link.
+
+The hosted default sender has recipient restrictions and low limits. Successful owner login does not establish delivery to every external tester. Custom SMTP may still be needed for the multi-user beta. No domain purchase is needed just to test the default-link flow. The app's invitation list continues to gate all private features regardless of email delivery.

@@ -415,12 +415,4 @@ enabled = true
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
 
-# Code-only email authentication for local development.
-# Apply the same body in hosted Supabase Authentication > Emails; this file alone does not update it.
-[auth.email.template.magic_link]
-subject = "Your Job Radar sign-in code"
-content_path = "./supabase/templates/email_code.html"
-
-[auth.email.template.confirmation]
-subject = "Your Job Radar sign-in code"
-content_path = "./supabase/templates/email_code.html"
+# Match hosted Supabase's default email-link flow. No SMTP customization is required for local testing.
