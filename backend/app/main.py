@@ -45,7 +45,7 @@ with engine.begin() as c:
         c.execute(text("REVOKE ALL ON records FROM anon, authenticated"))
 access_store = AccessStore(engine, postgres=not DB.startswith("sqlite"))
 access_store.seed_legacy(os.getenv("INVITED_EMAILS", "").split(","))
-app = FastAPI(title="Job Radar API", version="0.1.0")
+app = FastAPI(title="Alongside API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("FRONTEND_ORIGINS", "http://localhost:5173").split(","),

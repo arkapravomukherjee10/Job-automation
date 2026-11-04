@@ -1,4 +1,4 @@
-# Job Radar
+# Alongside
 
 An invite-only job-search beta: React/TypeScript frontend, Python/FastAPI backend, and Supabase PostgreSQL/authentication in production. Deployment targets: Cloudflare Pages and Render. Free-plan availability and limits must be checked before deploying; this repository does not guarantee zero charges.
 
@@ -55,3 +55,7 @@ Sign in as **arkapravo.mukherjee10@gmail.com** using the emailed sign-in link, t
 ## UI regression checks
 
 From `frontend`, run `npm run test:ux` after installing Playwright Chromium with `npx playwright install chromium`. On this cloud workspace, use `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:ux`. The tests use simulated authentication and API responses. See [the UX review](docs/UX_REVIEW.md) for tested flows and limits.
+
+## Product name
+
+The product is now **Alongside — Guidance for your next step**. Its current beta focuses on job search; broader student guidance and mentorship are future ideas, not implemented features. Existing GitHub, Render, Cloudflare and Supabase resource names and URLs remain valid. Use **Alongside** as the Google OAuth app name.

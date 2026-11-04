@@ -1297,3 +1297,5 @@ dialog.modal {
 .modal .button-row {
   margin-bottom: 0;
 }
+
+.login-brand{display:flex;align-items:center;gap:12px;color:#214f3d}.login-brand strong{font-family:Manrope,sans-serif;font-size:28px;font-weight:800;letter-spacing:-1px}

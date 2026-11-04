@@ -148,7 +148,7 @@ export default function AdminPanel({ request }: { request: Request }) {
             </div>
           </div>
           <p className="muted">
-            The signup list records the first verified sign-in to Job Radar,
+            The signup list records the first verified sign-in to Alongside,
             including people still waiting for access. It doesn’t list
             unverified email attempts.
           </p>

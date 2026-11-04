@@ -47,3 +47,7 @@ The owner email is fixed server-side to arkapravo.mukherjee10@gmail.com. The app
 No hosted template changes are required. Use Supabase default Magic link or OTP and Confirm signup templates containing a confirmation URL. In Authentication > URL Configuration, set Site URL to `https://job-radar-940.pages.dev` and allow that same origin in redirect URLs. New and returning users request a sign-in link in the app, open the newest email link, and return to the dashboard or waiting screen. The Supabase client automatically consumes the verified session from the redirect. Do not share links or tokens. Invalid/expired link returns show a message inviting the user to request a fresh link.
 
 The hosted default sender has recipient restrictions and low limits. Successful owner login does not establish delivery to every external tester. Custom SMTP may still be needed for the multi-user beta. No domain purchase is needed just to test the default-link flow. The app's invitation list continues to gate all private features regardless of email delivery.
+
+## Alongside branding
+
+The portal is named Alongside. The existing `job-radar-940.pages.dev` frontend and `job-radar-api-sudh.onrender.com` API URLs remain in use. Keep these exact origins in Supabase URL Configuration, Render CORS and future OAuth redirect configuration; the product name change does not create new URLs. For Google consent-screen branding, enter Alongside as the app name. Hosted Supabase default email wording remains managed by Supabase.

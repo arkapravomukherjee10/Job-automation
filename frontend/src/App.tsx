@@ -407,7 +407,7 @@ export default function App() {
     return (
       <main className="login">
         <div className="login-card">
-          <Radar size={36} />
+          <div className="login-brand"><Radar size={36} aria-hidden="true"/><strong>Alongside<span className="brand-dot">.</span></strong></div>
           <span className="eyebrow">INVITE-ONLY BETA</span>
           <h1>
             Your next chapter,
@@ -439,7 +439,7 @@ export default function App() {
                   setSent(true);
                   setResendSeconds(60);
                   setNotice(
-                    "Check your email and click the sign-in link. It will verify your email and open Job Radar automatically. Use the newest email; each link works once.",
+                    "Check your email and click the sign-in link. It will verify your email and open Alongside automatically. Use the newest email; each link works once.",
                   );
                 });
               }}
@@ -499,7 +499,7 @@ export default function App() {
     return (
       <main className="login">
         <div className="login-card">
-          <Radar size={36} />
+          <div className="login-brand"><Radar size={36} aria-hidden="true"/><strong>Alongside<span className="brand-dot">.</span></strong></div>
           <span className="eyebrow">PRIVATE BETA</span>
           <h1>
             {access
@@ -557,7 +557,7 @@ export default function App() {
         >
           <Radar />
           <span>
-            jobradar<span className="brand-dot">.</span>
+            Alongside<span className="brand-dot">.</span>
           </span>
         </a>
         <span className="workspace-label">YOUR WORKSPACE</span>
@@ -632,7 +632,7 @@ export default function App() {
               </h1>
               <p>
                 {tab === "Admin"
-                  ? "Invite people and see who has joined Job Radar."
+                  ? "Invite people and see who has joined Alongside."
                   : tab === "Home"
                     ? "Good opportunities deserve your attention. Let’s find your next one."
                     : tab === "To do"
@@ -1264,7 +1264,7 @@ export default function App() {
           )}
           <footer>
             <Radar size={15} /> A thoughtful search. A confident next step.
-            <span>Job Radar · Private beta</span>
+            <span>Alongside · Private beta</span>
           </footer>
         </main>
       </div>
