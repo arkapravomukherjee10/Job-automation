@@ -11,7 +11,7 @@ Users open the original posting, apply on the portal and return to mark the job 
 Implemented: manual job ingestion and tracking, simple deterministic scoring/filtering, per-user persisted preferences, resume text extraction and structured version confirmation, consistency validation, activity history, production JWT invitation enforcement and owner-admin invitation management, local demo and deployment configuration.
 
 Deliberate limitations:
-- No Gmail/ATS/aggregator fetches, AI calls, or scheduled ingestion workers. UI states explicitly report unavailable connections. No third-party credentials are collected.
+- No Gmail/ATS/aggregator fetches, AI calls, or scheduled ingestion workers. UI states explicitly report unavailable connections. No per-user Gmail or AI credentials are collected by the current application. Google OAuth app credentials were configured separately in Render ahead of implementation.
 - Rule-based resume prefill supports common headings, skills lists, experience bullets and exact experience-detail lines. Ambiguous or wrapped content requires review. No OCR, resume PDF rendering, side-by-side diff, or AI chat.
 - Scores measure preferred-skill text mentions, not the PRD's full weighted criteria. Role/location filters are substring checks. No controlled role taxonomy, salary estimation, culture inference, or notice-period rules yet.
 - Resume facts are user-entered structured values. Similarity and token checks cannot establish semantic truthfulness, and skills added implicitly in prose can evade dictionary checks. Every resume rewrite requires human review.
