@@ -1299,3 +1299,8 @@ dialog.modal {
 }
 
 .login-brand{display:flex;align-items:center;gap:12px;color:#214f3d}.login-brand strong{font-family:Manrope,sans-serif;font-size:28px;font-weight:800;letter-spacing:-1px}
+.gmail-panel p, .gmail-message h4 { overflow-wrap: anywhere; }
+.gmail-panel > button, .gmail-panel > label { margin-top: 1rem; }
+.gmail-message { padding: 1rem 0; border-top: 1px solid #cbd5e1; }
+.gmail-message h4 { margin: 0 0 .5rem; }
+.gmail-messages { margin-top: 1.5rem; }

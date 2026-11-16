@@ -1,6 +1,32 @@
 # Alongside — project record and resume checkpoint
 
-**Updated: 4 November 2026 (Asia/Kolkata).**
+**Updated: 16 November 2026 (Asia/Kolkata).**
+
+## Latest checkpoint — Gmail implementation
+
+The owner confirmed that `GMAIL_ENCRYPTION_SECRET` was saved in Render. Its
+value was not requested, read or printed. Local implementation now includes
+per-user read-only OAuth, a single-use expiring state with PKCE and authenticated
+browser-bound completion, encrypted token storage/refresh, disconnect/revocation,
+and manual paginated sync of recent job-email headers. Settings shows the connected
+mailbox and review-only job/status suggestions. Email bodies are not fetched and
+application stages never change automatically. See [GMAIL.md](GMAIL.md) for setup,
+privacy boundaries, limitations and live acceptance checks.
+
+Validation: 28 backend tests and 11 browser scenarios passed locally, including
+the original suites, Gmail isolation/replay/expiry/refresh/disconnect cases and
+Gmail UI accessibility checks. TypeScript and production build passed. Google
+responses were simulated; none of this establishes a live Google connection.
+
+**Not deployed or live-verified at this checkpoint.** Next: review and publish the
+backend/frontend change, verify Render is Live, verify real owner login, and then
+have the owner grant Google consent from Settings and run the first manual sync.
+Cloudflare still needs a separate build/upload. No scheduled inbox worker or
+automatic status-update engine has been added.
+
+The sections below preserve the **4 November baseline**; statements there that
+Gmail routes are unimplemented or the encryption secret is unconfirmed are
+superseded by this checkpoint. Other unresolved product/live checks remain open.
 
 This is the maintained record of product decisions, implementation, deployment, verification and remaining work. It distinguishes repository implementation, confirmed cloud deployment, user-reported configuration and unverified live behavior. No passwords, OAuth client secrets, API tokens, session tokens or private connection strings belong in this document.
 

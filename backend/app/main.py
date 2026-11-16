@@ -15,6 +15,7 @@ from .validation import Resume, validate_resume
 from .parsing import prefill_resume
 from .database import connection_url
 from .access import AccessStore, Identity, InvitationInput, OWNER_EMAIL, normalize_email
+from .gmail import GmailService, gmail_router
 
 MODE = os.getenv("APP_MODE", "production")
 DB = os.getenv("DATABASE_URL", "sqlite:///./jobradar.db")
@@ -44,8 +45,20 @@ with engine.begin() as c:
         c.execute(text("ALTER TABLE records ENABLE ROW LEVEL SECURITY"))
         c.execute(text("REVOKE ALL ON records FROM anon, authenticated"))
 access_store = AccessStore(engine, postgres=not DB.startswith("sqlite"))
+gmail_service = GmailService(engine, postgres=not DB.startswith("sqlite"))
 access_store.seed_legacy(os.getenv("INVITED_EMAILS", "").split(","))
 app = FastAPI(title="Alongside API", version="0.1.0")
+
+
+@app.middleware("http")
+async def private_gmail_responses(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api/gmail/"):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("FRONTEND_ORIGINS", "http://localhost:5173").split(","),
@@ -326,7 +339,7 @@ def state(owner=Depends(user)):
         "jobs": [j for j in records(owner, "job") if not j.get("blocked")],
         "resumes": records(owner, "resume"),
         "activity": records(owner, "audit")[:50],
-        "capabilities": {"gmail": False, "ai": False},
+        "capabilities": {"gmail": gmail_service.status(owner)["available"], "ai": False},
     }
 
 
@@ -471,5 +484,9 @@ def validate(payload: ValidationInput, owner=Depends(user)):
 
 @app.delete("/api/data", status_code=204)
 def delete_data(owner=Depends(user)):
+    gmail_service.disconnect(owner)
     with engine.begin() as c:
         c.execute(text("DELETE FROM records WHERE owner=:owner"), {"owner": owner})
+
+
+app.include_router(gmail_router(gmail_service, user, authenticated_identity, records))

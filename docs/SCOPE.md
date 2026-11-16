@@ -6,12 +6,12 @@ This is a functioning foundation. The original PRD is superseded by the scope de
 
 All applications are manual. Auto-apply is removed from the roadmap, including submission adapters, Up next/send queues, hold windows, daily application caps, automation pause/kill switches and Applied (Auto). Strong matches go to Ready to Apply. Resume approval prepares a document; it never submits an application.
 
-Users open the original posting, apply on the portal and return to mark the job Applied (Manual). Opening a link is not evidence of submission and does not change status. Future read-only Gmail integration may identify confirmation and status emails; it is not implemented yet.
+Users open the original posting, apply on the portal and return to mark the job Applied (Manual). Opening a link is not evidence of submission and does not change status. Read-only Gmail connection and manual sync now import recent job-email headers with review-only match/status suggestions. They never change job stages. See [GMAIL.md](GMAIL.md); deployment and live verification remain pending.
 
 Implemented: manual job ingestion and tracking, simple deterministic scoring/filtering, per-user persisted preferences, resume text extraction and structured version confirmation, consistency validation, activity history, production JWT invitation enforcement and owner-admin invitation management, local demo and deployment configuration.
 
 Deliberate limitations:
-- No Gmail/ATS/aggregator fetches, AI calls, or scheduled ingestion workers. UI states explicitly report unavailable connections. No per-user Gmail or AI credentials are collected by the current application. Google OAuth app credentials were configured separately in Render ahead of implementation.
+- No ATS/aggregator fetches, AI calls, or scheduled ingestion workers. Gmail tokens are encrypted server-side after explicit consent. Sync is manual, metadata-only and limited to recent job-related subject searches. No AI credentials are collected.
 - Rule-based resume prefill supports common headings, skills lists, experience bullets and exact experience-detail lines. Ambiguous or wrapped content requires review. No OCR, resume PDF rendering, side-by-side diff, or AI chat.
 - Scores measure preferred-skill text mentions, not the PRD's full weighted criteria. Role/location filters are substring checks. No controlled role taxonomy, salary estimation, culture inference, or notice-period rules yet.
 - Resume facts are user-entered structured values. Similarity and token checks cannot establish semantic truthfulness, and skills added implicitly in prose can evade dictionary checks. Every resume rewrite requires human review.
