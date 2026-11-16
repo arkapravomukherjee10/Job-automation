@@ -4,6 +4,15 @@ An invite-only job-search beta: React/TypeScript frontend, Python/FastAPI backen
 
 See the maintained [project record and resume checkpoint](docs/PROJECT_RECORD.md) for decisions, deployment status, unfinished work and the exact next step.
 
+## Product and engineering specifications
+
+| Product and design | Engineering |
+| --- | --- |
+| [Product requirements](docs/PRD.md) | [Tech stack](docs/Techstack.md) |
+| [UX specification](docs/UX_spec.md) | [Architecture](docs/architecture.md) |
+| [Design system](docs/Designsystem.md) | [Data model](docs/datamodel.md) |
+| [Build and release plan](docs/buildplan.md) | [Security and privacy](docs/Security.md) |
+
 ## Application workflow
 
 Applications are always submitted by the user on the original portal. Open a posting, apply there, then return and choose **Mark as applied**. Opening a posting does not change its stage. Auto-apply is removed from the product scope. The optional [Gmail integration](docs/GMAIL.md) imports recent job-email headers for review; it does not automatically update application stages. Deployment and a real Google connection still need verification.
