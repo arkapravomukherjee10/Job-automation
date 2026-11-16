@@ -13,7 +13,7 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: "npm run dev -- --host 127.0.0.1 --port 5190 --strictPort",
+    command: "node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5190 --strictPort",
     url: "http://127.0.0.1:5190",
     reuseExistingServer: !process.env.CI,
     env: {

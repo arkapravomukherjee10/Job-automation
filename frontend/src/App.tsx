@@ -1,5 +1,6 @@
 import Dialog from "./Dialog";
 import AdminPanel from "./AdminPanel";
+import GmailPanel from "./GmailPanel";
 import ResumeEditor from "./ResumeEditor";
 import { useEffect, useState, useRef, type FormEvent } from "react";
 import { createClient, type Session } from "@supabase/supabase-js";
@@ -269,7 +270,7 @@ export default function App() {
         currentUser.current = nextUser;
         setAccess(null);
         setState(null);
-        setTab("Home");
+        setTab(window.location.hash.startsWith("#gmail_") ? "Settings" : "Home");
         setSelected(null);
         setAddOpen(false);
         setConfirmDelete(false);
@@ -1230,23 +1231,24 @@ export default function App() {
                         </>
                       )}
                     </section>
+                    <GmailPanel api={api} jobs={jobs} onJobs={() => navigate("Jobs")} />
                     <section className="panel connections">
                       <h2>Connections</h2>
-                      {["Gmail inbox", "Your AI provider"].map((s) => (
+                      {["Your AI provider"].map((s) => (
                         <div key={s}>
                           <span>{s}</span>
                           <span className="stage">Not available yet</span>
                         </div>
                       ))}
                       <p className="muted">
-                        Gmail and AI connections are not available yet.
+                        AI connections are not available yet.
                       </p>
                     </section>
                     <section className="panel">
                       <h2>Your data</h2>
                       <p className="muted">
                         Remove this workspace’s jobs, preferences, resume
-                        versions, and activity. Your login account is managed
+                        versions, activity, Gmail connection and imported email headers. Your login account is managed
                         separately.
                       </p>
                       <button

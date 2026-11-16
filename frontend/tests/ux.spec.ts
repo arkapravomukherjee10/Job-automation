@@ -2,6 +2,73 @@ import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
 const email = "arkapravo.mukherjee10@gmail.com";
+
+test("Gmail consent, manual sync, review and disconnect", async ({ page }) => {
+  await setup(page);
+  let connected = false;
+  let messages: object[] = [];
+  let syncs = 0;
+  await page.route("https://api.ux-tests.invalid/api/gmail/**", async route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/status")) return route.fulfill({ json: { available: true, connected, email: connected ? "mailbox@example.com" : null, last_sync: null, has_more: false, messages } });
+    if (path.endsWith("/connect")) {
+      expect(route.request().postDataJSON().consent).toBe(true);
+      expect(route.request().postDataJSON().browser_verifier.length).toBeGreaterThanOrEqual(43);
+      return route.fulfill({ json: { url: "https://accounts.google.com/o/oauth2/v2/auth?state=fake-state" } });
+    }
+    if (path.endsWith("/sync")) {
+      syncs++;
+      messages = [{ id: "message-1", subject: "Example Company Product Manager application received", sender: "recruiting@example.com", received_at: Date.now(), job_ids: ["job-1"], suggested_stage: "Applied (Manual)" }];
+      return route.fulfill({ json: { notice: "Email headers synced. No application stages were changed." } });
+    }
+    if (path.endsWith("/connection")) {
+      connected = false; messages = [];
+      return route.fulfill({ json: { notice: "Gmail disconnected and imported email metadata removed." } });
+    }
+    return route.fulfill({ json: {} });
+  });
+  await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Connect Gmail", exact: true })).toBeDisabled();
+  await page.getByLabel(/I agree to read-only Gmail access/).check();
+  await expect(page.getByRole("button", { name: "Connect Gmail", exact: true })).toBeEnabled();
+  await accessible(page);
+  connected = true;
+  await page.getByRole("navigation").getByRole("button", { name: "Home", exact: true }).click();
+  await page.getByRole("navigation").getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(page.getByText("mailbox@example.com", { exact: true })).toBeVisible();
+  expect(syncs).toBe(0);
+  await page.getByRole("button", { name: "Sync recent emails" }).click();
+  await expect(page.getByRole("heading", { name: "Example Company Product Manager application received" })).toBeVisible();
+  expect(syncs).toBe(1);
+  await accessible(page);
+  await page.getByRole("button", { name: "Disconnect Gmail", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await accessible(page);
+  await page.getByRole("button", { name: "Disconnect and remove headers" }).click();
+  await expect(page.getByText("No Gmail mailbox connected.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Emails to review" })).toHaveCount(0);
+});
+
+test("Gmail return completes once with browser verifier and opens Settings", async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => sessionStorage.setItem("alongside.gmail.verifier", "b".repeat(64)));
+  let completed = 0;
+  await page.route("https://api.ux-tests.invalid/api/gmail/**", async route => {
+    if (route.request().url().endsWith("/complete")) {
+      completed++;
+      expect(route.request().postDataJSON()).toEqual({ state: "s".repeat(43), browser_verifier: "b".repeat(64) });
+      return route.fulfill({ json: { connected: true, email: "mailbox@example.com" } });
+    }
+    return route.fulfill({ json: { available: true, connected: true, email: "mailbox@example.com", last_sync: null, has_more: false, messages: [] } });
+  });
+  await page.goto("/#gmail_state=" + "s".repeat(43));
+  await page.reload();
+  await expect(page.getByText("mailbox@example.com", { exact: true })).toBeVisible();
+  expect(completed).toBe(1);
+  expect(await page.evaluate(() => sessionStorage.getItem("alongside.gmail.verifier"))).toBeNull();
+  expect(new URL(page.url()).hash).toBe("");
+});
+
 const fixture = {
   preferences: {
     roles: ["Product Manager"],
@@ -116,6 +183,7 @@ async function setup(
         json: { email, allowed, is_admin: admin },
       });
     if (path === "/api/state") return route.fulfill({ headers, json: state });
+    if (path === "/api/gmail/status") return route.fulfill({ headers, json: { available: false, connected: false, email: null, last_sync: null, has_more: false, messages: [] } });
     if (path === "/api/preferences") {
       Object.assign(state.preferences, route.request().postDataJSON());
       return route.fulfill({ headers, json: state.preferences });

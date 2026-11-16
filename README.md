@@ -6,9 +6,11 @@ See the maintained [project record and resume checkpoint](docs/PROJECT_RECORD.md
 
 ## Application workflow
 
-Applications are always submitted by the user on the original portal. Open a posting, apply there, then return and choose **Mark as applied**. Opening a posting does not change its stage. Auto-apply is removed from the product scope. Future Gmail tracking may update statuses from confirmation emails; it is not connected yet.
+Applications are always submitted by the user on the original portal. Open a posting, apply there, then return and choose **Mark as applied**. Opening a posting does not change its stage. Auto-apply is removed from the product scope. The optional [Gmail integration](docs/GMAIL.md) imports recent job-email headers for review; it does not automatically update application stages. Deployment and a real Google connection still need verification.
 
 ## What works now
+
+- Read-only Gmail OAuth, encrypted tokens, disconnect and manual header sync with review-only matching suggestions (tested with simulated Google responses; live verification pending).
 
 - Home, To do, Jobs, Settings, responsive layout, empty states and activity history.
 - Manually add a URL and pasted job description; no website fetching or scraping.

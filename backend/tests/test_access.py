@@ -49,6 +49,9 @@ def auth_client(monkeypatch):
 def test_only_verified_owner_can_manage_access(auth_client):
     c, h = auth_client
     assert c.get("/api/admin/users").status_code == 401
+    for method, path in [("GET", "/api/gmail/status"), ("POST", "/api/gmail/sync"), ("DELETE", "/api/gmail/connection")]:
+        assert c.request(method, path).status_code == 401
+        assert c.request(method, path, headers=h("uninvited@example.com")).status_code == 403
     owner = h(OWNER_EMAIL.upper())
     assert c.get("/api/access", headers=owner).json()["is_admin"]
     assert c.get("/api/admin/users", headers=owner).status_code == 200

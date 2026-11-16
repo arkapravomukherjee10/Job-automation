@@ -1,5 +1,9 @@
 # Deployment
 
+For the optional Gmail integration, see [GMAIL.md](GMAIL.md). It requires the
+existing Google OAuth settings and encryption secret on Render, plus deployment
+of both backend and frontend changes. Do not mark it live based on local tests.
+
 Deployment: frontend https://job-radar-940.pages.dev and API https://job-radar-api-sudh.onrender.com. Cloudflare uses API uploads rather than automatic Git deployments. Verify current plan terms and quotas first; do not enable paid upgrades to complete this guide without the owner's approval.
 
 ## Supabase
